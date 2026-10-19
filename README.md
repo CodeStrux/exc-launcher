@@ -21,6 +21,10 @@ host.
 cargo install exc-launcher   # published crate name; installs the `exc` binary
 ```
 
+Or download a prebuilt binary (Linux and macOS, x86_64 and arm64) from the
+[releases page](https://github.com/codestrux/codestrux-exc-launcher/releases).
+Each archive contains `exc`, its man page `exc.1`, and an example `config.toml`.
+
 Or build from a clone of this repo:
 
 ```sh
