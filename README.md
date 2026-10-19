@@ -35,6 +35,35 @@ cp target/release/exc ~/.local/bin/exc   # or anywhere on your PATH
 `cargo install` only puts the `exc` binary on your `$PATH` - it doesn't
 install the man page. See [Man page](#man-page) below to add one.
 
+### Windows prerequisites
+
+Rust's default Windows toolchain (`x86_64-pc-windows-msvc`) links with
+Microsoft's MSVC linker, which `rustup` doesn't install. Without it,
+`cargo install` / `cargo build` fails with:
+
+```text
+note: the msvc targets depend on the msvc linker but `link.exe` was not found
+note: please ensure that Visual Studio 2017 or later, or Build Tools for Visual Studio were installed with the Visual C++ option
+note: VS Code is a different product, and is not sufficient
+```
+
+Install the MSVC build tools once, before building (see
+[Microsoft's guide](https://learn.microsoft.com/en-us/cpp/overview/acquire-msvc?view=msvc-170)):
+
+1. Install **Build Tools for Visual Studio** (or full Visual Studio 2017 or
+   later), selecting the **Desktop development with C++** workload. It
+   includes the MSVC compiler/linker and the Windows SDK. From a terminal:
+
+   ```powershell
+   winget install Microsoft.VisualStudio.2022.BuildTools --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+   ```
+
+2. Open a **new** terminal so the updated environment is picked up, then
+   run `cargo install exc-launcher` (or `cargo build --release`) again.
+
+VS Code alone isn't enough: it's an editor and doesn't include the MSVC
+toolchain.
+
 ## Quick start
 
 Run `exc` with no arguments. If no config file exists yet at the default
