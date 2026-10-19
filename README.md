@@ -58,11 +58,46 @@ Install the MSVC build tools once, before building (see
    winget install Microsoft.VisualStudio.2022.BuildTools --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
    ```
 
+   **On ARM64 Windows**, the workload alone isn't enough: also select the
+   individual component **MSVC v143 - VS 2022 C++ ARM64/ARM64EC build tools
+   (Latest)**. From a terminal, add it to the same install command:
+
+   ```powershell
+   winget install Microsoft.VisualStudio.2022.BuildTools --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --includeRecommended"
+   ```
+
+   If Build Tools is already installed, open **Visual Studio Installer**,
+   choose **Modify**, and tick that component under **Individual components**.
+
 2. Open a **new** terminal so the updated environment is picked up, then
    run `cargo install exc-launcher` (or `cargo build --release`) again.
 
 VS Code alone isn't enough: it's an editor and doesn't include the MSVC
 toolchain.
+
+**Troubleshooting: `LNK1120` unresolved externals on ARM64.** If the build
+fails with hundreds of unresolved symbols (`memcpy`, `__imp_CloseHandle`,
+`mainCRTStartup`, ...) together with warnings like:
+
+```text
+...\um\x86\kernel32.lib : warning LNK4272: library machine type 'x86' conflicts with target machine type 'ARM64'
+```
+
+then the linker is being given x86 libraries for an ARM64 build. This happens
+when `cargo` runs inside a **Developer PowerShell / Developer Command Prompt
+for VS**, which sets up an x86 environment by default; Rust trusts that
+environment instead of locating the ARM64 libraries itself. Either:
+
+- run `cargo install` from a regular PowerShell or Windows Terminal tab, or
+- start the developer shell for ARM64:
+
+  ```powershell
+  & "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\Launch-VsDevShell.ps1" -Arch arm64 -HostArch arm64
+  ```
+
+If it still fails, check that the ARM64 build tools component above is
+installed: `VC\Tools\MSVC\<version>\lib\arm64\` should exist under the Build
+Tools folder.
 
 ## Quick start
 
