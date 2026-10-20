@@ -1,0 +1,77 @@
+# Demo-only config used to record the README animation.
+# Every command is offline-safe and harmless: no real hosts, no real secrets.
+
+[meta]
+title = "demo@exc"
+theme = "dark"
+
+[[profiles]]
+name = "system"
+label = "System"
+description = "Everyday local system commands"
+
+  [[profiles.commands]]
+  name = "disk-usage"
+  description = "Show disk usage for the current directory"
+  command = "du -sh ."
+
+  [[profiles.commands]]
+  name = "top-processes"
+  description = "Show the top CPU-consuming processes"
+  command = "ps aux | sort -rk 3 | head -n 5"
+
+  [[profiles.commands]]
+  name = "print-hosts"
+  description = "Print /etc/hosts"
+  command = "cat /etc/hosts"
+
+[[profiles]]
+name = "git"
+label = "Git"
+description = "Common actions run against the current repository"
+
+  [[profiles.commands]]
+  name = "git-status"
+  description = "Show a short status of the working tree"
+  command = "git status -sb"
+
+  [[profiles.commands]]
+  name = "git-log-graph"
+  description = "Show a compact commit graph"
+  command = "git log --oneline --graph --decorate -n 8"
+
+[[profiles]]
+name = "network"
+label = "Network"
+description = "Connectivity diagnostics"
+
+  [[profiles.commands]]
+  name = "ping-host"
+  description = "Ping a host twice"
+  command = "ping -c 2 {{host}}"
+
+    [[profiles.commands.params]]
+    name = "host"
+    prompt = "Host to ping"
+    default = "127.0.0.1"
+
+[[profiles]]
+name = "deploy"
+label = "Deploy"
+description = "Parameterised command with a masked secret"
+
+  [[profiles.commands]]
+  name = "deploy-app"
+  description = "Deploy to an environment (token is prompted, masked)"
+  # The token is validated but never echoed, so the masked prompt stays meaningful.
+  command = 'test -n "{{token}}" && echo "Deployed to {{env}} - token accepted (never shown)"'
+
+    [[profiles.commands.params]]
+    name = "env"
+    prompt = "Environment"
+    default = "staging"
+
+    [[profiles.commands.params]]
+    name = "token"
+    prompt = "API token"
+    secret = true

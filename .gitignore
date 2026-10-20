@@ -1,4 +1,5 @@
 /target
+.DS_Store
 
 # Personal/dev config and launcher script with real hosts, IPs, and
 # credentials — never meant to be committed. See config.toml and
