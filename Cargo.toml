@@ -1,11 +1,11 @@
 [package]
 name = "exc-launcher"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 rust-version = "1.95"
 description = "A fast, lightweight terminal menu launcher for automating everyday commands and project-specific tasks"
 license = "MIT"
-repository = "https://github.com/codestrux/codestrux-exc-launcher"
+repository = "https://github.com/CodeStrux/exc-launcher"
 readme = "README.md"
 keywords = ["cli", "launcher", "terminal", "tui", "menu"]
 categories = ["command-line-utilities"]
@@ -14,7 +14,7 @@ categories = ["command-line-utilities"]
 # there's no git commit history to diff against, so these must be excluded
 # here explicitly too. `local/` in particular holds real hosts/VPN certs used
 # for day-to-day dev testing and must never end up in a published crate.
-exclude = ["/local", "/qodana.yaml", "/resume", "/.idea"]
+exclude = ["/local", "/qodana.yaml", "/resume", "/.idea", "/demo"]
 
 [[bin]]
 name = "exc"
