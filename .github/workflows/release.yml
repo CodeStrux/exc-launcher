@@ -20,8 +20,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Pinned (not ubuntu-latest) so the glibc the binary links against
+          # stays old enough to run on current LTS distros.
           - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
+            os: ubuntu-24.04
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-24.04-arm
           - target: x86_64-apple-darwin
