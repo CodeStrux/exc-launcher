@@ -4,7 +4,6 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
-use crate::config::CommandEntry;
 use crate::hostinfo::{self, SystemInfo};
 use crate::layout;
 use crate::theme::ThemeColors;
@@ -33,17 +32,26 @@ pub fn conv_color(c: crossterm::style::Color) -> RColor {
     }
 }
 
+/// One cell of the picker grid.
+pub struct GridItem<'a> {
+    /// True, cross-profile-unique id (see `crate::config::global_id_of`),
+    /// stable across profiles and filtering.
+    pub global_id: usize,
+    pub name: &'a str,
+    /// Found in a profile other than the current one by the cross-profile
+    /// text search; drawn muted so it reads as secondary.
+    pub foreign: bool,
+}
+
 pub struct DrawContext<'a> {
     pub profile_label: &'a str,
     pub profile_index: usize,
     pub profile_count: usize,
-    /// 1-based global id of this profile's first command; added to a
-    /// command's position within the profile to label it with its true,
-    /// cross-profile-unique id (see `crate::config::global_id_of`).
-    pub profile_base: usize,
+    /// Label of the selected item's profile, when it isn't the current one.
+    pub selected_profile: Option<&'a str>,
     pub query: &'a str,
-    pub items: &'a [&'a CommandEntry],
-    pub filtered: &'a [usize],
+    /// Already-filtered items, in display order.
+    pub items: &'a [GridItem<'a>],
     pub selected: usize,
     pub scroll_offset: usize,
     pub theme: &'a ThemeColors,
@@ -105,13 +113,17 @@ pub fn draw(frame: &mut Frame, ctx: &DrawContext) {
     );
     let is_id_query = !ctx.query.is_empty() && ctx.query.bytes().all(|b| b.is_ascii_digit());
     let prompt_glyph = if is_id_query { "#" } else { "/" };
-    let filter_line = Line::from(vec![
+    let mut filter_spans = vec![
         Span::styled(profile_tab, Style::default().fg(accent).add_modifier(Modifier::BOLD)),
         Span::raw("  "),
         Span::styled(prompt_glyph, Style::default().fg(muted)),
         Span::styled(ctx.query.to_string(), Style::default().fg(text_c)),
         Span::styled("_", Style::default().fg(muted)),
-    ]);
+    ];
+    if let Some(label) = ctx.selected_profile {
+        filter_spans.push(Span::styled(format!("  (in {label})"), Style::default().fg(muted)));
+    }
+    let filter_line = Line::from(filter_spans);
     frame.render_widget(Paragraph::new(filter_line), filter_area);
 
     // Grid.
@@ -120,13 +132,13 @@ pub fn draw(frame: &mut Frame, ctx: &DrawContext) {
     let grid_block = Block::default().borders(Borders::NONE);
     frame.render_widget(&grid_block, grid_area);
 
-    if ctx.filtered.is_empty() {
+    if ctx.items.is_empty() {
         frame.render_widget(
             Paragraph::new(Span::styled("(no matches)", Style::default().fg(muted))),
             grid_area,
         );
     } else {
-        let names: Vec<&str> = ctx.filtered.iter().map(|&i| ctx.items[i].name.as_str()).collect();
+        let names: Vec<&str> = ctx.items.iter().map(|item| item.name).collect();
         let widest = names.iter().map(|n| layout::display_width(n)).max().unwrap_or(1);
         let columns = layout::grid_columns(grid_area.width as usize, widest + 5, names.len());
         let rows_total = layout::rows_needed(names.len(), columns);
@@ -152,10 +164,12 @@ pub fn draw(frame: &mut Frame, ctx: &DrawContext) {
                 // `idx` is a position within the filtered/displayed subset;
                 // the label shows the item's true global id (stable across
                 // profiles and filtering), not that display-relative position.
-                let global_id = ctx.profile_base + ctx.filtered[idx] + 1;
-                let label = format!("[{:>2}] {:<width$}", global_id, names[idx], width = widest);
+                let item = &ctx.items[idx];
+                let label = format!("[{:>2}] {:<width$}", item.global_id, item.name, width = widest);
                 let style = if idx == ctx.selected {
                     Style::default().fg(selected_fg).bg(selected_bg).add_modifier(Modifier::BOLD)
+                } else if item.foreign {
+                    Style::default().fg(muted)
                 } else {
                     Style::default().fg(text_c)
                 };

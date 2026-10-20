@@ -23,7 +23,7 @@ Show
 Type "exc --config demo-config.toml" Sleep 400ms Enter
 Sleep 2s
 
-# 2. Live filter: type to narrow the current profile's grid, Ctrl-U to clear.
+# 2. Live filter: type to narrow the grid, Ctrl-U to clear.
 Type "proc"
 Sleep 1500ms
 Ctrl+U
@@ -53,14 +53,10 @@ Sleep 1200ms
 Ctrl+U
 Sleep 400ms
 
-# 6. Filtering is per profile, so move to Network first, then run ping-host,
-#    which prompts for a host (Enter accepts the default 127.0.0.1).
-Tab
-Sleep 600ms
-Tab
-Sleep 600ms
+# 6. Text search spans every profile: from System, "ping" finds ping-host in
+#    Network. It prompts for a host (Enter accepts the default 127.0.0.1).
 Type "ping"
-Sleep 800ms
+Sleep 1500ms
 Enter
 Sleep 1500ms
 Enter

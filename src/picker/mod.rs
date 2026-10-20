@@ -41,7 +41,10 @@ struct App<'a> {
     profiles: &'a [Profile],
     profile_idx: usize,
     query: String,
-    filtered: Vec<usize>,
+    /// Visible items as `(profile_idx, local_idx)`. An empty query lists the
+    /// current profile; a text query lists the current profile's matches
+    /// first, followed by matches from every other profile.
+    filtered: Vec<(usize, usize)>,
     selected: usize,
     scroll_offset: usize,
 }
@@ -64,15 +67,12 @@ impl<'a> App<'a> {
         &self.profiles[self.profile_idx]
     }
 
-    /// 1-based global id of this profile's first command, minus one (0 for
-    /// the first profile, then continuing right after the previous
-    /// profile's last command).
-    fn profile_base(&self) -> usize {
-        crate::config::global_id_of(self.profiles, self.profile_idx, 0) - 1
+    fn command(&self, (profile_idx, local_idx): (usize, usize)) -> &'a CommandEntry {
+        &self.profiles[profile_idx].commands[local_idx]
     }
 
-    fn haystacks(&self) -> Vec<String> {
-        self.current_profile()
+    fn haystacks(&self, profile_idx: usize) -> Vec<String> {
+        self.profiles[profile_idx]
             .commands
             .iter()
             .map(|c| format!("{} {}", c.name, c.description))
@@ -87,6 +87,11 @@ impl<'a> App<'a> {
     /// switches to it automatically so the item is ready to run — mirroring
     /// how a shell `select` menu lets you type a number to pick an option
     /// directly, but without numbers colliding across profiles.
+    ///
+    /// A text query searches every profile, not just the current one: the
+    /// current profile's matches come first, then the other profiles' in
+    /// config order, so a command can be found without knowing (or Tabbing
+    /// to) the profile it lives in. The active profile doesn't change.
     fn recompute_filter(&mut self) {
         if !self.query.is_empty() && self.query.bytes().all(|b| b.is_ascii_digit()) {
             let target = self
@@ -97,13 +102,23 @@ impl<'a> App<'a> {
             match target {
                 Some((profile_idx, local_idx)) => {
                     self.profile_idx = profile_idx;
-                    self.filtered = vec![local_idx];
+                    self.filtered = vec![(profile_idx, local_idx)];
                 }
                 None => self.filtered = Vec::new(),
             }
+        } else if self.query.is_empty() {
+            let current = self.profile_idx;
+            self.filtered = (0..self.current_profile().commands.len()).map(|i| (current, i)).collect();
         } else {
-            let hay = self.haystacks();
-            self.filtered = filter::filter_indices(&self.query, &hay);
+            let others = (0..self.profiles.len()).filter(|&pi| pi != self.profile_idx);
+            self.filtered = std::iter::once(self.profile_idx)
+                .chain(others)
+                .flat_map(|pi| {
+                    filter::filter_indices(&self.query, &self.haystacks(pi))
+                        .into_iter()
+                        .map(move |li| (pi, li))
+                })
+                .collect();
         }
         self.selected = self.selected.min(self.filtered.len().saturating_sub(1));
         self.scroll_offset = 0;
@@ -127,7 +142,7 @@ impl<'a> App<'a> {
         let names: Vec<&str> = self
             .filtered
             .iter()
-            .map(|&i| self.current_profile().commands[i].name.as_str())
+            .map(|&entry| self.command(entry).name.as_str())
             .collect();
         let widest = names.iter().map(|n| layout::display_width(n)).max().unwrap_or(1);
         layout::grid_columns(width, widest + 5, names.len())
@@ -158,15 +173,24 @@ impl<'a> App<'a> {
     }
 
     fn selected_command(&self) -> Option<CommandEntry> {
-        self.filtered
-            .get(self.selected)
-            .map(|&i| self.current_profile().commands[i].clone())
+        self.filtered.get(self.selected).map(|&entry| self.command(entry).clone())
     }
 
     /// 1-based global id of the currently selected item, matching the
     /// numbers shown in the grid and by `exc list`.
     fn selected_global_id(&self) -> Option<usize> {
-        self.filtered.get(self.selected).map(|&local_idx| self.profile_base() + local_idx + 1)
+        self.filtered
+            .get(self.selected)
+            .map(|&(pi, li)| crate::config::global_id_of(self.profiles, pi, li))
+    }
+
+    /// Label of the profile the selected item belongs to, when that isn't
+    /// the current profile (i.e. it was found by the cross-profile search).
+    fn selected_foreign_profile(&self) -> Option<&'a str> {
+        self.filtered
+            .get(self.selected)
+            .filter(|&&(pi, _)| pi != self.profile_idx)
+            .map(|&(pi, _)| self.profiles[pi].display_label())
     }
 
     /// Typing "exit" and pressing Enter quits, mirroring how you'd leave a
@@ -212,15 +236,22 @@ fn event_loop(
         terminal.draw(|frame| {
             let area = frame.area();
             columns_for_frame = app.columns(area.width as usize).max(1);
-            let items: Vec<&CommandEntry> = app.current_profile().commands.iter().collect();
+            let items: Vec<render::GridItem> = app
+                .filtered
+                .iter()
+                .map(|&(pi, li)| render::GridItem {
+                    global_id: crate::config::global_id_of(app.profiles, pi, li),
+                    name: app.command((pi, li)).name.as_str(),
+                    foreign: pi != app.profile_idx,
+                })
+                .collect();
             let ctx = render::DrawContext {
                 profile_label: app.current_profile().display_label(),
                 profile_index: app.profile_idx,
                 profile_count: app.profiles.len(),
-                profile_base: app.profile_base(),
+                selected_profile: app.selected_foreign_profile(),
                 query: &app.query,
                 items: &items,
-                filtered: &app.filtered,
                 selected: app.selected,
                 scroll_offset: app.scroll_offset,
                 theme,
@@ -305,7 +336,7 @@ mod tests {
         let mut app = App::new(&profiles, 0);
         app.query = "3".to_string();
         app.recompute_filter();
-        assert_eq!(app.filtered, vec![2]);
+        assert_eq!(app.filtered, vec![(0, 2)]);
         assert_eq!(app.selected_command().unwrap().name, "c");
     }
 
@@ -328,7 +359,7 @@ mod tests {
         assert!(app.filtered.is_empty());
         app.query = "pinggy".to_string();
         app.recompute_filter();
-        assert_eq!(app.filtered, vec![1]);
+        assert_eq!(app.filtered, vec![(0, 1)]);
     }
 
     #[test]
@@ -363,12 +394,55 @@ mod tests {
     }
 
     #[test]
-    fn profile_base_accounts_for_earlier_profiles() {
+    fn global_id_accounts_for_earlier_profiles() {
         let profiles = vec![profile_with(&["a", "b"]), profile_with(&["c", "d", "e"])];
         let mut app = App::new(&profiles, 0);
-        assert_eq!(app.profile_base(), 0);
+        assert_eq!(app.selected_global_id(), Some(1));
         app.next_profile();
-        assert_eq!(app.profile_base(), 2);
+        assert_eq!(app.selected_global_id(), Some(3));
+    }
+
+    #[test]
+    fn empty_query_lists_only_the_current_profile() {
+        let profiles = vec![profile_with(&["a", "b"]), profile_with(&["c", "d"])];
+        let app = App::new(&profiles, 1);
+        assert_eq!(app.filtered, vec![(1, 0), (1, 1)]);
+    }
+
+    #[test]
+    fn text_query_also_finds_matches_in_other_profiles() {
+        let profiles = vec![
+            profile_with(&["disk-usage", "ping-local"]),
+            profile_with(&["git-status"]),
+            profile_with(&["ping-host", "dns-lookup"]),
+        ];
+        let mut app = App::new(&profiles, 1);
+        app.query = "ping".to_string();
+        app.recompute_filter();
+
+        // Current profile (1) has no match; the other profiles' matches
+        // still show up, in config order, without switching profile.
+        assert_eq!(app.filtered, vec![(0, 1), (2, 0)]);
+        assert_eq!(app.profile_idx, 1);
+        assert_eq!(app.selected_command().unwrap().name, "ping-local");
+        assert_eq!(app.selected_global_id(), Some(2));
+        assert_eq!(app.selected_foreign_profile(), Some("p"));
+    }
+
+    #[test]
+    fn current_profile_matches_come_first() {
+        let profiles = vec![profile_with(&["ping-local"]), profile_with(&["ping-host"])];
+        let mut app = App::new(&profiles, 1);
+        app.query = "ping".to_string();
+        app.recompute_filter();
+        assert_eq!(app.filtered, vec![(1, 0), (0, 0)]);
+        assert_eq!(app.selected_command().unwrap().name, "ping-host");
+        assert_eq!(app.selected_global_id(), Some(2));
+        assert_eq!(app.selected_foreign_profile(), None);
+
+        app.move_selection(0, 1, 2);
+        assert_eq!(app.selected_command().unwrap().name, "ping-local");
+        assert_eq!(app.selected_global_id(), Some(1));
     }
 
     #[test]
@@ -377,10 +451,10 @@ mod tests {
         let mut app = App::new(&profiles, 0);
         app.query = "2".to_string();
         app.recompute_filter();
-        assert_eq!(app.filtered, vec![1]);
+        assert_eq!(app.filtered, vec![(0, 1)]);
         app.query.clear();
         app.recompute_filter();
-        assert_eq!(app.filtered, vec![0, 1, 2]);
+        assert_eq!(app.filtered, vec![(0, 0), (0, 1), (0, 2)]);
     }
 
     #[test]

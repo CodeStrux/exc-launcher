@@ -157,7 +157,7 @@ not left-to-right, top-to-bottom.
 
 | Key | Action |
 |---|---|
-| Type letters/symbols | Live filter (regex, falls back to substring on invalid regex) |
+| Type letters/symbols | Live filter (regex, falls back to substring on invalid regex). Matches from the current profile come first, followed by matches from every other profile (shown dimmed, with the selected one's profile named next to the filter) |
 | Type digits only | Jump straight to that numbered item (e.g. `12` selects item `[12]`) - matches the numbers shown by `exc list` and an unfiltered grid |
 | Backspace | Delete last input character |
 | Ctrl-U | Clear the input (filter text or digits) |
