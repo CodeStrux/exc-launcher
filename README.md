@@ -144,6 +144,7 @@ exc sysinfo
 exc validate [--strict] [--format text|json]
 exc init [--force]
 exc man                     # print a roff(7) man page to stdout, see Man page below
+exc completions zsh         # print a zsh completion script, see Shell completion below
 
 # global flags
 exc --config <path> --profile <name> --theme default|dark|mono --no-color
@@ -264,6 +265,30 @@ exc man | man -l -
 
 `cargo install` doesn't run this for you - man pages aren't something crates
 carry metadata for, so this is a manual (or packaging-script) step.
+
+## Shell completion
+
+`exc completions zsh` prints a zsh completion script. Load it from
+`~/.zshrc`, after `compinit` (the same way `zoxide init zsh` is loaded):
+
+```sh
+eval "$(exc completions zsh)"
+```
+
+Or install it once as an autoloaded completion function somewhere on your
+`$fpath`:
+
+```sh
+exc completions zsh > "${fpath[1]}/_exc"
+```
+
+Tab then completes subcommands and flags, plus the names from your config:
+command names (with their profile and description) after `exc` and
+`exc run`, profile names after `--profile`, and theme and format values.
+Those names aren't baked into the script. It reads them from the config
+each time you press Tab, using the same config path `exc` itself would
+(including a `--config` already typed on the line), so edits to the config
+show up right away with no need to regenerate the script.
 
 ## License
 

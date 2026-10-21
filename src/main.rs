@@ -1,4 +1,5 @@
 mod cli;
+mod completions;
 mod config;
 mod error;
 mod exec;
@@ -17,7 +18,7 @@ use config::validate::Severity;
 use config::Config;
 use error::ConfigError;
 
-use cli::{Cli, Commands, OutputFormat};
+use cli::{Cli, Commands, CompleteKind, OutputFormat, Shell};
 
 const STARTER_CONFIG: &str = include_str!("../config/starter.toml");
 
@@ -50,6 +51,8 @@ fn run(cli: Cli) -> Result<i32> {
         // sysinfo works without a config file (config only supplies an optional [meta] title override).
         Some(Commands::Sysinfo) => return cmd_sysinfo(&cli),
         Some(Commands::Man) => return cmd_man(),
+        Some(Commands::Completions { shell }) => return cmd_completions(*shell),
+        Some(Commands::Complete { kind }) => return cmd_complete(&cli, *kind),
         _ => {}
     }
 
@@ -74,9 +77,12 @@ fn run(cli: Cli) -> Result<i32> {
     match cli.command {
         Some(Commands::Run { name }) => cmd_run(&cfg, &name),
         Some(Commands::List { profile, plain }) => cmd_list(&cfg, profile.as_deref(), plain),
-        Some(Commands::Init { .. }) | Some(Commands::Validate { .. }) | Some(Commands::Sysinfo) | Some(Commands::Man) => {
-            unreachable!()
-        }
+        Some(Commands::Init { .. })
+        | Some(Commands::Validate { .. })
+        | Some(Commands::Sysinfo)
+        | Some(Commands::Man)
+        | Some(Commands::Completions { .. })
+        | Some(Commands::Complete { .. }) => unreachable!(),
         None => cmd_picker(&cfg, &cli),
     }
 }
@@ -93,6 +99,26 @@ fn cmd_man() -> Result<i32> {
     let mut buf = Vec::new();
     man.render(&mut buf)?;
     io::stdout().write_all(&buf)?;
+    Ok(0)
+}
+
+fn cmd_completions(shell: Shell) -> Result<i32> {
+    match shell {
+        Shell::Zsh => print!("{}", completions::zsh_script()),
+    }
+    Ok(0)
+}
+
+/// Backs the hidden `exc __complete <kind>` subcommand the completion script
+/// calls on every Tab press. Any config problem just yields no candidates:
+/// completion must never print errors into the user's prompt.
+fn cmd_complete(cli: &Cli, kind: CompleteKind) -> Result<i32> {
+    let path = cli.config.clone().unwrap_or_else(config::default_config_path);
+    if let Ok(cfg) = config::load_config(&path) {
+        for line in completions::candidates(&cfg, kind) {
+            println!("{line}");
+        }
+    }
     Ok(0)
 }
 

@@ -16,7 +16,8 @@ exc                    Launch the interactive picker\n    \
 exc deploy-staging     Run the \"deploy-staging\" command directly\n    \
 exc list --plain       List every command name, one per line\n    \
 exc init               Write a starter config if you don't have one yet\n    \
-exc man > exc.1        Generate a man page (see `exc man --help`)"
+exc man > exc.1        Generate a man page (see `exc man --help`)\n    \
+eval \"$(exc completions zsh)\"   Enable zsh tab completion (in ~/.zshrc)"
 )]
 pub struct Cli {
     /// Path to the config file (default: $XDG_CONFIG_HOME/exc/config.toml, or ~/.config/exc/config.toml)
@@ -83,6 +84,39 @@ pub enum Commands {
     /// or viewed on the spot without installing it:
     ///   exc man | man -l -
     Man,
+    /// Print a shell completion script to stdout
+    ///
+    /// The script completes subcommands and flags, plus the command and
+    /// profile names defined in your config. Those names aren't baked into the
+    /// script: they're read from the config file (honoring any --config on the
+    /// line being completed) each time you press Tab, so config edits show up
+    /// immediately. Load it from ~/.zshrc, after compinit:
+    ///   eval "$(exc completions zsh)"
+    /// or install it as an autoloaded completion function:
+    ///   exc completions zsh > "${fpath[1]}/_exc"
+    Completions {
+        /// Shell to generate the completion script for
+        #[arg(value_enum)]
+        shell: Shell,
+    },
+    /// Print completion candidates read from the config (used by the
+    /// script `exc completions` generates)
+    #[command(name = "__complete", hide = true)]
+    Complete {
+        #[arg(value_enum)]
+        kind: CompleteKind,
+    },
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum Shell {
+    Zsh,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum CompleteKind {
+    Commands,
+    Profiles,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -91,7 +125,9 @@ pub enum OutputFormat {
     Json,
 }
 
-const KNOWN_SUBCOMMANDS: &[&str] = &["run", "list", "validate", "sysinfo", "init", "man", "help"];
+const KNOWN_SUBCOMMANDS: &[&str] = &[
+    "run", "list", "validate", "sysinfo", "init", "man", "completions", "__complete", "help",
+];
 /// Global flags that consume a separate following token as their value
 /// (space form, e.g. `--config path.toml`) — needed so the shorthand
 /// detector below can skip past `--flag value` pairs without mistaking the
